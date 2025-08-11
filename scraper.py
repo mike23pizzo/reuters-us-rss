@@ -7,27 +7,47 @@ URL = "https://www.reuters.com/world/us/"
 r = requests.get(URL)
 soup = BeautifulSoup(r.text, "html.parser")
 
-# Collect top articles
 items = []
-for article in soup.select("article a[data-testid='Heading']"):
-    title = article.get_text(strip=True)
-    link = article["href"]
+
+# Find article blocks - updated selector based on current site
+for article in soup.select("article.story"):  # example selector; adjust if needed
+    # Try to find headline link inside article
+    a = article.find("a")
+    if not a or not a.get("href"):
+        continue
+
+    title = a.get_text(strip=True)
+    link = a["href"]
     if not link.startswith("http"):
         link = "https://www.reuters.com" + link
-    desc = title  # Could expand with more scraping if needed
+
+    # Try to find summary paragraph (optional)
+    summary_tag = article.find("p")
+    summary = summary_tag.get_text(strip=True) if summary_tag else title
+
     pub_date = eut.format_datetime(datetime.utcnow())
-    items.append((title, link, desc, pub_date))
+
+    items.append((title, link, summary, pub_date))
+
     if len(items) >= 10:
         break
 
 # Build RSS XML
 rss_items = ""
 for title, link, desc, pub_date in items:
+    # Escape XML special characters in title and description
+    title_escaped = (title.replace("&", "&amp;")
+                           .replace("<", "&lt;")
+                           .replace(">", "&gt;"))
+    desc_escaped = (desc.replace("&", "&amp;")
+                         .replace("<", "&lt;")
+                         .replace(">", "&gt;"))
+
     rss_items += f"""
     <item>
-      <title>{title}</title>
+      <title>{title_escaped}</title>
       <link>{link}</link>
-      <description>{desc}</description>
+      <description>{desc_escaped}</description>
       <pubDate>{pub_date}</pubDate>
       <guid isPermaLink="true">{link}</guid>
     </item>"""
